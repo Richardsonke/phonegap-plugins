@@ -51,6 +51,8 @@ public class WebIntent extends Plugin {
 
                 // Parse the arguments
                 JSONObject obj = args.getJSONObject(0);
+                String component = obj.has("component") ? obj.getString("component") : null;
+                String category = obj.has("category") ? obj.getString("category") : null;
                 String type = obj.has("type") ? obj.getString("type") : null;
                 Uri uri = obj.has("url") ? Uri.parse(obj.getString("url")) : null;
                 JSONObject extras = obj.has("extras") ? obj.getJSONObject("extras") : null;
@@ -65,8 +67,13 @@ public class WebIntent extends Plugin {
                         extrasMap.put(key, value);
                     }
                 }
-
-                startActivity(obj.getString("action"), uri, type, extrasMap);
+                
+                if (component != null) {
+                    startActivity(obj.getString("action"), component, category, extrasMap);
+                } else {
+                    startActivity(obj.getString("action"), uri, type, extrasMap);
+                }
+                
                 return new PluginResult(PluginResult.Status.OK);
 
             } else if (action.equals("hasExtra")) {
@@ -157,10 +164,29 @@ public class WebIntent extends Plugin {
             }
         }
         
+        addExtrasToStartActivity(i, extras, type);
+        
+        this.cordova.getActivity().startActivity(i);
+    }
+    
+    void startActivity(String action, String component, String category, Map<String, String> extras) {
+        Intent i = new Intent(action);
+        
+        i.setComponent(android.content.ComponentName.unflattenFromString(component));
+        if (category != null) {
+            i.addCategory(category);
+        }
+        
+        addExtrasToStartActivity(i, extras, null);
+        
+        this.cordova.getActivity().startActivity(i);
+    }
+    
+    void addExtrasToStartActivity(Intent i, Map<String, String> extras, String type) {
         for (String key : extras.keySet()) {
             String value = extras.get(key);
             // If type is text html, the extra text must sent as HTML
-            if (key.equals(Intent.EXTRA_TEXT) && type.equals("text/html")) {
+            if (type != null && key.equals(Intent.EXTRA_TEXT) && type.equals("text/html")) {
                 i.putExtra(key, Html.fromHtml(value));
             } else if (key.equals(Intent.EXTRA_STREAM)) {
                 // allowes sharing of images as attachments.
@@ -169,11 +195,12 @@ public class WebIntent extends Plugin {
             } else if (key.equals(Intent.EXTRA_EMAIL)) {
                 // allows to add the email address of the receiver
                 i.putExtra(Intent.EXTRA_EMAIL, new String[] { value });
+            } else if (value.equals("true") || value.equals("false")) {
+                i.putExtra(key, Boolean.parseBoolean(value));
             } else {
                 i.putExtra(key, value);
             }
         }
-        this.cordova.getActivity().startActivity(i);
     }
 
     void sendBroadcast(String action, Map<String, String> extras) {
